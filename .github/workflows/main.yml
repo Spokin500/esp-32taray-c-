@@ -1,0 +1,46 @@
+name: Build Debug APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kodu indir
+        uses: actions/checkout@v4
+
+      - name: JDK 17 kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Projede gradlew yok, bu yüzden Gradle'ı doğrudan kuruyoruz
+      - name: Gradle kur
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      # build.gradle.kts debug.keystore dosyasını bekliyor ama .gitignore'da, o yüzden burada üretiyoruz
+      - name: debug.keystore oluştur
+        run: |
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Debug APK derle
+        run: gradle assembleDebug --stacktrace
+
+      - name: APK'yı yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
