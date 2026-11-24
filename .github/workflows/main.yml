@@ -21,8 +21,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Android SDK Kurulumu
-        uses: android-actions/setup-android@v3
+      - name: Android SDK Lisanslarını Onayla
+        run: |
+          yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
 
       - name: Gradle 9.3.1 Kurulumu
         uses: gradle/actions/setup-gradle@v4
