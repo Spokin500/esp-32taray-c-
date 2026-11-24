@@ -1,46 +1,56 @@
-name: Build Debug APK
+name: Android APK Build
 
 on:
   push:
     branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Kodu indir
+      - name: Depoyu İndir (Checkout)
         uses: actions/checkout@v4
 
-      - name: JDK 17 kur
+      - name: JDK 17 Kurulumu
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '17'
 
-      # Projede gradlew yok, bu yüzden Gradle'ı doğrudan kuruyoruz
-      - name: Gradle kur
+      - name: Android SDK Kurulumu
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle 9.3.1 Kurulumu
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
 
-      # build.gradle.kts debug.keystore dosyasını bekliyor ama .gitignore'da, o yüzden burada üretiyoruz
-      - name: debug.keystore oluştur
+      - name: Debug Keystore ve Ortam Dosyasını Hazırla
         run: |
-          keytool -genkeypair -v \
-            -keystore debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if [ ! -f debug.keystore ]; then
+            if [ -f debug.keystore.base64 ]; then
+              base64 -d debug.keystore.base64 > debug.keystore
+            else
+              keytool -genkey -v -keystore debug.keystore \
+                -storepass android -alias androiddebugkey -keypass android \
+                -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US"
+            fi
+          fi
+          if [ ! -f .env ] && [ -f .env.example ]; then
+            cp .env.example .env
+          fi
 
-      - name: Debug APK derle
-        run: gradle assembleDebug --stacktrace
+      - name: Debug APK Derle
+        run: gradle :app:assembleDebug --no-daemon
 
-      - name: APK'yı yükle
+      - name: APK Dosyasını Artifact Olarak Yükle
         uses: actions/upload-artifact@v4
         with:
-          name: esp32-app-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: esp32-ag-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
