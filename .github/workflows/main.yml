@@ -15,6 +15,30 @@ jobs:
       - name: Depoyu İndir (Checkout)
         uses: actions/checkout@v4
 
+      - name: ZIP Varsa Aç ve Proje Dizinini Bul
+        id: find_project
+        run: |
+          SETTINGS_FILE=$(find . -maxdepth 4 -name "settings.gradle.kts" -o -name "settings.gradle" | head -n 1)
+          if [ -z "$SETTINGS_FILE" ]; then
+            ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
+            if [ -n "$ZIP_FILE" ]; then
+              echo "ZIP dosyası bulundu, açılıyor: $ZIP_FILE"
+              mkdir -p _extracted
+              unzip -q -o "$ZIP_FILE" -d _extracted
+              SETTINGS_FILE=$(find _extracted -maxdepth 4 -name "settings.gradle.kts" -o -name "settings.gradle" | head -n 1)
+            fi
+          fi
+
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "HATA: settings.gradle.kts veya proje ZIP dosyası bulunamadı!"
+            ls -la
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+          echo "Proje dizini: $PROJECT_DIR"
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
       - name: JDK 17 Kurulumu
         uses: actions/setup-java@v4
         with:
@@ -31,6 +55,7 @@ jobs:
           gradle-version: '9.3.1'
 
       - name: Debug Keystore ve Ortam Dosyasını Hazırla
+        working-directory: ${{ steps.find_project.outputs.project_dir }}
         run: |
           if [ ! -f debug.keystore ]; then
             if [ -f debug.keystore.base64 ]; then
@@ -47,11 +72,12 @@ jobs:
           fi
 
       - name: Debug APK Derle
+        working-directory: ${{ steps.find_project.outputs.project_dir }}
         run: gradle :app:assembleDebug --no-daemon
 
       - name: APK Dosyasını Artifact Olarak Yükle
         uses: actions/upload-artifact@v4
         with:
           name: esp32-ag-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ steps.find_project.outputs.project_dir }}/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
